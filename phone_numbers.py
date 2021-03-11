@@ -3,6 +3,7 @@
 import datetime
 from enum import Enum
 import math
+import json
 
 class CallParseError(Exception):
     pass
@@ -157,8 +158,14 @@ def findMostExpensiveNumber(callLogFilepath):
         number_table.setdefault(
             call.number.number, [call.number.number, 0]
         )[1] += call.cost()
-    print(number_table)
-    return 0
+    most_expensive = sorted(number_table.values(), key=lambda x: x[1])[0]
+    return_data = dict(
+        PhoneNumber = most_expensive[0],
+        TotalAmount = '£%f' % (most_expensive[1] / 100)
+    )
+    #
+    # Set ensure_ascii=False to allow the £ sign to be printed properly
+    return json.dumps(return_data, indent=4, ensure_ascii=False)
 
 if __name__ == '__main__':
     import sys
