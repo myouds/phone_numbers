@@ -124,7 +124,7 @@ class PhoneCall:
         # CSV line should be in the format:
         # PhoneNumber,CallStartTime,CallDuration,CallDirection
         try:
-            num, start, duration, direction = csv_line.split(',')
+            num, start, duration, direction = csv_line.rstrip('\n').split(',')
         except Exception as e:
             raise CallParseError(
                 f'Error spliting CSV line - line is {csv_line}'
@@ -138,7 +138,8 @@ class PhoneCall:
                 line = f.readline()
                 if not line:
                     break
-                yield cls.from_csv(line)
+                if len(line) > 1:
+                    yield cls.from_csv(line)
 
 def findMostExpensiveNumber(callLogFilepath):
     calls = PhoneCall.from_csv_file(callLogFilepath)
@@ -158,7 +159,19 @@ def findMostExpensiveNumber(callLogFilepath):
         number_table.setdefault(
             call.number.number, [call.number.number, 0]
         )[1] += call.cost()
-    most_expensive = sorted(number_table.values(), key=lambda x: x[1])[0]
+    two_most_expensive = sorted(
+        number_table.values(), key=lambda x: x[1], reverse=True
+    )[0:2]
+    #
+    # Return None if there has been no cost
+    if two_most_expensive[0][1] == 0:
+        return None
+    #
+    # Return None if it is a tie
+    if len(two_most_expensive) == 2 and \
+        two_most_expensive[0][1] == two_most_expensive[1][1]:
+        return None
+    most_expensive = two_most_expensive[0]
     return_data = dict(
         PhoneNumber = most_expensive[0],
         TotalAmount = '£%f' % (most_expensive[1] / 100)
