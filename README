@@ -1,1 +1,8 @@
-Initial commit
+Possible improvements:
+1) More extensive testing with different phone numbers and a larger amount of
+   test data in the CSV file
+2) The peak/off-peak decision is binary and applies to the whole call. If an off
+   peak call is long enough to cross the transition to peak period, the cost is
+   not adjusted to reflect this and the whole call will be costed as off-peak.
+   The logic could be improved to calculate the costs of the peak and off-peak
+   parts of the call separately and then add them together.
