@@ -13,6 +13,10 @@ class Direction(Enum):
     OUTGOING = 'OUTGOING'
 
 class PhoneNumber:
+    '''
+    Phone number superclass. This should not be instantiated directly.
+    Always use one of the subclasses.
+    '''
     cost_per_minute = None
     connection_charge = None
     off_peak_divider = None
@@ -24,6 +28,11 @@ class PhoneNumber:
 
     @classmethod
     def from_string(cls, number):
+        '''
+        Take a phone number in string form and return one of the PhoneNumber
+        subclasses. The choice of subclass will depend on the first characters
+        of the phone number
+        '''
         #
         # Standardise country code syntax by replacing '+' with '00'
         number = number.replace('+', '00')
@@ -55,6 +64,9 @@ class PhoneNumber:
         # Everything else is invalid
         return InvalidNumber(number)
 
+#
+# Various classes of number have different costs
+#
 
 class InternationalNumber(PhoneNumber):
     cost_per_minute = 80
@@ -78,6 +90,9 @@ class InvalidNumber(PhoneNumber):
     cost_per_minute = 0
     connection_charge = 0
 
+#
+# Tarriff includes free minutes for some number classes
+#
 international_allowance = 10
 landline_mobile_allowance = 100
 
@@ -119,6 +134,7 @@ class PhoneCall:
         self.direction = Direction(direction)
         #
         # Work out how much of the tarriff allowance this call has used
+        # and reduce the remaining allowance accordingly.
         if self.direction is Direction.OUTGOING:
             if type(self.number) is InternationalNumber:
                 self.free_minutes = min(self.duration, international_allowance)
