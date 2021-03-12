@@ -78,10 +78,15 @@ class InvalidNumber(PhoneNumber):
     cost_per_minute = 0
     connection_charge = 0
 
+international_allowance = 10
+landline_mobile_allowance = 100
+
 class PhoneCall:
     peak_time_start = datetime.time(8,0)
     peak_time_end = datetime.time(20,0)
     def __init__(self, number, start_time, duration, direction):
+        global international_allowance
+        global landline_mobile_allowance
         #
         # Phone number class will depend on its first characters
         self.number = PhoneNumber.from_string(number)
@@ -112,14 +117,32 @@ class PhoneCall:
         #
         # Direction should be either INCOMING or OUTGOING
         self.direction = Direction(direction)
+        #
+        # Work out how much of the tarriff allowance this call has used
+        if self.direction is Direction.OUTGOING:
+            if type(self.number) is InternationalNumber:
+                self.free_minutes = min(self.duration, international_allowance)
+                international_allowance -= self.free_minutes
+            elif type(self.number) in [LandlineNumber, MobileNumber]:
+                self.free_minutes = min(self.duration, landline_mobile_allowance)
+                landline_mobile_allowance -= self.free_minutes
+            else:
+                self.free_minutes = 0
 
-    def cost(self):
+    def cost(self, apply_allowance=True):
         if self.direction == Direction.INCOMING:
             return 0
         #
         # Charge is per started minute with an additional connection charge
+        # Subtract the free minutes from the started minutes
+        if apply_allowance:
+            chargeable_minutes = self.duration - self.free_minutes
+        else:
+            #
+            # Free minutes can be optionally ignored for the purposes of testing
+            chargeable_minutes = self.duration
         cost = self.number.connection_charge + \
-            (self.duration * self.number.cost_per_minute)
+            (chargeable_minutes * self.number.cost_per_minute)
 
         if self.number.off_peak_divider is not None:
             start_time = self.start_time.time()
@@ -127,7 +150,6 @@ class PhoneCall:
                 #
                 # Off peak start time - divide cost by divider
                 cost = cost // self.number.off_peak_divider
-
         return cost
 
     @classmethod
@@ -215,15 +237,15 @@ def test_phone_number():
 
 def test_csv():
     csv = '07882456789,2019-08-29T11:28:05.666Z,12:36,OUTGOING'
-    assert PhoneCall.from_csv(csv).cost() == 390
+    assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 390
     csv = '07882456789,2019-08-29T20:28:05.666Z,12:36,OUTGOING'
-    assert PhoneCall.from_csv(csv).cost() == 130
+    assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 130
     csv = '07882456789,2019-08-29T20:28:05.666Z,12:36,INCOMING'
-    assert PhoneCall.from_csv(csv).cost() == 0
+    assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 0
     csv = '08082456789,2019-08-29T20:28:05.666Z,12:36,OUTGOING'
-    assert PhoneCall.from_csv(csv).cost() == 0
+    assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 0
     csv = '+017654765234,2019-08-29T15:28:05.666Z,1:0,OUTGOING'
-    assert PhoneCall.from_csv(csv).cost() == 130
+    assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 130
 
 if __name__ == '__main__':
     import sys
