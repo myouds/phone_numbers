@@ -15,6 +15,7 @@ class Direction(Enum):
 class PhoneNumber:
     cost_per_minute = None
     connection_charge = None
+    off_peak_divider = None
 
     def __init__(self, number):
         if self.cost_per_minute is None or self.connection_charge is None:
@@ -48,7 +49,7 @@ class PhoneNumber:
         if number[0:2] == '07':
             #
             # Unless it is 076 and not 07624
-            if number[2] != '6' or number[3:5] != '24':
+            if number[2] != '6' or number[0:5] == '07624':
                 return MobileNumber(number)
         #
         # Everything else is invalid
@@ -62,10 +63,12 @@ class InternationalNumber(PhoneNumber):
 class LandlineNumber(PhoneNumber):
     cost_per_minute = 15
     connection_charge = 0
+    off_peak_divider = 3
 
 class MobileNumber(PhoneNumber):
     cost_per_minute = 30
     connection_charge = 0
+    off_peak_divider = 3
 
 class FreeNumber(PhoneNumber):
     cost_per_minute = 0
@@ -76,6 +79,8 @@ class InvalidNumber(PhoneNumber):
     connection_charge = 0
 
 class PhoneCall:
+    peak_time_start = datetime.time(8,0)
+    peak_time_end = datetime.time(20,0)
     def __init__(self, number, start_time, duration, direction):
         #
         # Phone number class will depend on its first characters
@@ -115,6 +120,13 @@ class PhoneCall:
         # Charge is per started minute with an additional connection charge
         cost = self.number.connection_charge + \
             (self.duration * self.number.cost_per_minute)
+
+        if self.number.off_peak_divider is not None:
+            start_time = self.start_time.time()
+            if start_time < self.peak_time_start or start_time > self.peak_time_end:
+                #
+                # Off peak start time - divide cost by divider
+                cost = cost // self.number.off_peak_divider
 
         return cost
 
@@ -179,6 +191,39 @@ def findMostExpensiveNumber(callLogFilepath):
     #
     # Set ensure_ascii=False to allow the £ sign to be printed properly
     return json.dumps(return_data, indent=4, ensure_ascii=False)
+
+#
+# Tests to be run by pytest
+#
+
+def test_phone_number():
+    numbers = [
+        ('07777777777', MobileNumber),
+        ('07655555555', InvalidNumber),
+        ('07624777777', MobileNumber),
+        ('01858585858', LandlineNumber),
+        ('02934567890', LandlineNumber),
+        ('+441234565567', LandlineNumber),
+        ('00441234565567', LandlineNumber),
+        ('00011234565567', InternationalNumber),
+        ('+011234565567', InternationalNumber),
+        ('+11234565567', InternationalNumber),
+        ('05678765432', InvalidNumber)
+    ]
+    for num in numbers:
+        assert type(PhoneNumber.from_string(num[0])) is num[1]
+
+def test_csv():
+    csv = '07882456789,2019-08-29T11:28:05.666Z,12:36,OUTGOING'
+    assert PhoneCall.from_csv(csv).cost() == 390
+    csv = '07882456789,2019-08-29T20:28:05.666Z,12:36,OUTGOING'
+    assert PhoneCall.from_csv(csv).cost() == 130
+    csv = '07882456789,2019-08-29T20:28:05.666Z,12:36,INCOMING'
+    assert PhoneCall.from_csv(csv).cost() == 0
+    csv = '08082456789,2019-08-29T20:28:05.666Z,12:36,OUTGOING'
+    assert PhoneCall.from_csv(csv).cost() == 0
+    csv = '+017654765234,2019-08-29T15:28:05.666Z,1:0,OUTGOING'
+    assert PhoneCall.from_csv(csv).cost() == 130
 
 if __name__ == '__main__':
     import sys
