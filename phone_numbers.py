@@ -5,12 +5,15 @@ from enum import Enum
 import math
 import json
 
+
 class CallParseError(Exception):
     pass
+
 
 class Direction(Enum):
     INCOMING = 'INCOMING'
     OUTGOING = 'OUTGOING'
+
 
 class PhoneNumber:
     '''
@@ -51,7 +54,7 @@ class PhoneNumber:
             return LandlineNumber(number)
         #
         # Freephone numbers start with 080
-        if number [0:3] == '080':
+        if number[0:3] == '080':
             return FreeNumber(number)
         #
         # Mobile numbers start with 07
@@ -68,27 +71,33 @@ class PhoneNumber:
 # Various classes of number have different costs
 #
 
+
 class InternationalNumber(PhoneNumber):
     cost_per_minute = 80
     connection_charge = 50
+
 
 class LandlineNumber(PhoneNumber):
     cost_per_minute = 15
     connection_charge = 0
     off_peak_divider = 3
 
+
 class MobileNumber(PhoneNumber):
     cost_per_minute = 30
     connection_charge = 0
     off_peak_divider = 3
 
+
 class FreeNumber(PhoneNumber):
     cost_per_minute = 0
     connection_charge = 0
 
+
 class InvalidNumber(PhoneNumber):
     cost_per_minute = 0
     connection_charge = 0
+
 
 #
 # Tarriff includes free minutes for some number classes
@@ -96,9 +105,11 @@ class InvalidNumber(PhoneNumber):
 international_allowance = 10
 landline_mobile_allowance = 100
 
+
 class PhoneCall:
-    peak_time_start = datetime.time(8,0)
-    peak_time_end = datetime.time(20,0)
+    peak_time_start = datetime.time(8, 0)
+    peak_time_end = datetime.time(20, 0)
+
     def __init__(self, number, start_time, duration, direction):
         global international_allowance
         global landline_mobile_allowance
@@ -110,14 +121,15 @@ class PhoneCall:
         # the +00:00 expected by datetime
         try:
             self.start_time = datetime.datetime.fromisoformat(
-                start_time.replace('Z','+00:00')
+                start_time.replace('Z', '+00:00')
             )
         except Exception as e:
             raise CallParseError(
                 f'Error parsing start time {start_time}'
             ) from e
         #
-        # Duration is in the format 'MM:SS'. We need the number of started minutes
+        # Duration is in the format 'MM:SS'.
+        # We need the number of started minutes
         try:
             minutes, seconds = duration.split(':')
             minutes = int(minutes)
@@ -137,10 +149,16 @@ class PhoneCall:
         # and reduce the remaining allowance accordingly.
         if self.direction is Direction.OUTGOING:
             if type(self.number) is InternationalNumber:
-                self.free_minutes = min(self.duration, international_allowance)
+                self.free_minutes = min(
+                    self.duration,
+                    international_allowance
+                )
                 international_allowance -= self.free_minutes
             elif type(self.number) in [LandlineNumber, MobileNumber]:
-                self.free_minutes = min(self.duration, landline_mobile_allowance)
+                self.free_minutes = min(
+                    self.duration,
+                    landline_mobile_allowance
+                )
                 landline_mobile_allowance -= self.free_minutes
             else:
                 self.free_minutes = 0
@@ -155,14 +173,15 @@ class PhoneCall:
             chargeable_minutes = self.duration - self.free_minutes
         else:
             #
-            # Free minutes can be optionally ignored for the purposes of testing
+            # Free minutes can be optionally ignored for testing purposes
             chargeable_minutes = self.duration
         cost = self.number.connection_charge + \
             (chargeable_minutes * self.number.cost_per_minute)
 
         if self.number.off_peak_divider is not None:
             start_time = self.start_time.time()
-            if start_time < self.peak_time_start or start_time > self.peak_time_end:
+            if start_time < self.peak_time_start \
+                    or start_time > self.peak_time_end:
                 #
                 # Off peak start time - divide cost by divider
                 cost = cost // self.number.off_peak_divider
@@ -190,6 +209,7 @@ class PhoneCall:
                     break
                 if len(line) > 1:
                     yield cls.from_csv(line)
+
 
 def findMostExpensiveNumber(callLogFilepath):
     calls = PhoneCall.from_csv_file(callLogFilepath)
@@ -219,12 +239,12 @@ def findMostExpensiveNumber(callLogFilepath):
     #
     # Return None if it is a tie
     if len(two_most_expensive) == 2 and \
-        two_most_expensive[0][1] == two_most_expensive[1][1]:
+            two_most_expensive[0][1] == two_most_expensive[1][1]:
         return None
     most_expensive = two_most_expensive[0]
     return_data = dict(
-        PhoneNumber = most_expensive[0],
-        TotalAmount = '£%f' % (most_expensive[1] / 100)
+        PhoneNumber=most_expensive[0],
+        TotalAmount='£%f' % (most_expensive[1] / 100)
     )
     #
     # Set ensure_ascii=False to allow the £ sign to be printed properly
@@ -233,6 +253,7 @@ def findMostExpensiveNumber(callLogFilepath):
 #
 # Tests to be run by pytest
 #
+
 
 def test_phone_number():
     numbers = [
@@ -251,6 +272,7 @@ def test_phone_number():
     for num in numbers:
         assert type(PhoneNumber.from_string(num[0])) is num[1]
 
+
 def test_csv():
     csv = '07882456789,2019-08-29T11:28:05.666Z,12:36,OUTGOING'
     assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 390
@@ -262,6 +284,7 @@ def test_csv():
     assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 0
     csv = '+017654765234,2019-08-29T15:28:05.666Z,1:0,OUTGOING'
     assert PhoneCall.from_csv(csv).cost(apply_allowance=False) == 130
+
 
 if __name__ == '__main__':
     import sys
